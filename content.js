@@ -1,9 +1,9 @@
 chrome.storage.local.get('upcomingHolidayText', async (result) => {
     const currentTime = Date.now();
-    const oneHour = 60 * 1000; // milliseconds
+    const validityTime = 12 * 60 * 60 * 1000; // milliseconds
     let upcomingHolidayText;
 
-    if (result.upcomingHolidayText && currentTime - result.upcomingHolidayText.timestamp < oneHour) {
+    if (result.upcomingHolidayText && currentTime - result.upcomingHolidayText.timestamp < validityTime) {
         upcomingHolidayText = result.upcomingHolidayText.text;
     } else {
         // Request the holiday text from the background script
