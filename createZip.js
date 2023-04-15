@@ -5,53 +5,64 @@ const archiver = require('archiver');
 const gitignorePath = path.join(__dirname, '.gitignore');
 const outputPath = path.join(__dirname, 'extension.zip');
 
-const isIgnored = (filename) => {
-    if (filename === 'backgroundBundle.js') {
-        return false;
-    }
+const isIgnored = (filepath) => {
+  if (filepath === 'backgroundBundle.js') {
+    return false;
+  }
 
-    const gitignore = fs.readFileSync(gitignorePath, 'utf8');
-    const ignorePatterns = gitignore.split('\n').filter((line) => line.trim() !== '' && !line.startsWith('#'));
+  if (filepath.startsWith('node_modules/') || filepath.startsWith('.git/')) {
+    return true;
+  }
 
-    return ignorePatterns.some((pattern) => new RegExp(`^${pattern.replace('*', '.*')}$`).test(filename));
+  const gitignore = fs.readFileSync(gitignorePath, 'utf8');
+  const ignorePatterns = gitignore.split('\n').filter((line) => line.trim() !== '' && !line.startsWith('#'));
+
+  return ignorePatterns.some((pattern) => new RegExp(`^${pattern.replace('*', '.*')}$`).test(filepath));
 };
 
+const addDirectoryToArchive = (dirPath, archive) => {
+  const items = fs.readdirSync(dirPath);
+  items.forEach((item) => {
+    const itemPath = path.join(dirPath, item);
+    const itemName = path.relative(__dirname, itemPath);
+
+    if (!isIgnored(itemName)) {
+      if (fs.lstatSync(itemPath).isDirectory()) {
+        addDirectoryToArchive(itemPath, archive);
+      } else {
+        archive.file(itemPath, { name: itemName });
+      }
+    }
+  });
+};
 
 const createZip = () => {
-    const output = fs.createWriteStream(outputPath);
-    const archive = archiver('zip', {
-        zlib: { level: 9 }, // Sets the compression level.
-    });
+  const output = fs.createWriteStream(outputPath);
+  const archive = archiver('zip', {
+    zlib: { level: 9 }, // Sets the compression level.
+  });
 
-    output.on('close', () => {
-        console.log(`Extension has been zipped to ${outputPath}. Total size: ${archive.pointer()} bytes.`);
-    });
+  output.on('close', () => {
+    console.log(`Extension has been zipped to ${outputPath}. Total size: ${archive.pointer()} bytes.`);
+  });
 
-    archive.on('warning', (err) => {
-        if (err.code === 'ENOENT') {
-            console.warn(err);
-        } else {
-            throw err;
-        }
-    });
+  archive.on('warning', (err) => {
+    if (err.code === 'ENOENT') {
+      console.warn(err);
+    } else {
+      throw err;
+    }
+  });
 
-    archive.on('error', (err) => {
-        throw err;
-    });
+  archive.on('error', (err) => {
+    throw err;
+  });
 
-    archive.pipe(output);
+  archive.pipe(output);
 
-    fs.readdirSync(__dirname).forEach((file) => {
-        if (!isIgnored(file) && file !== 'extension.zip') {
-            if (fs.lstatSync(file).isDirectory()) {
-                archive.directory(file, file);
-            } else {
-                archive.file(file, { name: file });
-            }
-        }
-    });
+  addDirectoryToArchive(__dirname, archive);
 
-    archive.finalize();
+  archive.finalize();
 };
 
 createZip();
