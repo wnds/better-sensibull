@@ -1,0 +1,14 @@
+# .gitignore
+
+# Node.js related
+node_modules/
+package-lock.json
+
+# Bundled files
+backgroundBundle.js
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+extension.zip
