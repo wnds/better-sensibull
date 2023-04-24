@@ -2,7 +2,11 @@ const cheerio = require('cheerio');
 
 async function fetchUpcomingHoliday() {
   try {
-    const response = await fetch('https://zerodha.com/marketintel/holiday-calendar/');
+    const response = await fetch('https://zerodha.com/marketintel/holiday-calendar/', {
+      headers: {
+        'Cache-Control': 'no-cache',
+      },
+    });
     const html = await response.text();
     const $ = cheerio.load(html);
 
