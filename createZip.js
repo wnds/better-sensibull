@@ -1,9 +1,11 @@
 const fs = require('fs');
 const path = require('path');
 const archiver = require('archiver');
+const { exec } = require('child_process');
 
+const manifest = require('./manifest.json'); // Import the manifest file
 const gitignorePath = path.join(__dirname, '.gitignore');
-const outputPath = path.join(__dirname, 'extension.zip');
+const outputPath = path.join(__dirname, `better-sensibull-v${manifest.version}.zip`); // Include version number in the filename
 
 const isIgnored = (filepath) => {
   if (filepath === 'backgroundBundle.js') {
@@ -36,7 +38,23 @@ const addDirectoryToArchive = (dirPath, archive) => {
   });
 };
 
-const createZip = () => {
+const runBrowserify = () => {
+  return new Promise((resolve, reject) => {
+    exec('browserify background.js -o backgroundBundle.js', (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Error running Browserify: ${error}`);
+        reject(error);
+      } else {
+        console.log('Browserify completed successfully.');
+        resolve();
+      }
+    });
+  });
+};
+
+const createZip = async () => {
+  await runBrowserify();
+
   const output = fs.createWriteStream(outputPath);
   const archive = archiver('zip', {
     zlib: { level: 9 }, // Sets the compression level.
