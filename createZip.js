@@ -40,7 +40,7 @@ const addDirectoryToArchive = (dirPath, archive) => {
 
 const runBrowserify = () => {
   return new Promise((resolve, reject) => {
-    exec('browserify background.js -o backgroundBundle.js', (error, stdout, stderr) => {
+    exec('npx browserify background.js -o backgroundBundle.js', (error, stdout, stderr) => {
       if (error) {
         console.error(`Error running Browserify: ${error}`);
         reject(error);
