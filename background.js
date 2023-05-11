@@ -1,86 +1,36 @@
-const fs = require('fs');
-const path = require('path');
-const archiver = require('archiver');
-const { exec } = require('child_process');
+const cheerio = require('cheerio');
 
-const manifest = require('./manifest.json'); // Import the manifest file
-const gitignorePath = path.join(__dirname, '.gitignore');
-const outputPath = path.join(__dirname, `better-sensibull-v${manifest.version}.zip`); // Include version number in the filename
-
-const isIgnored = (filepath) => {
-  if (filepath === 'backgroundBundle.js') {
-    return false;
-  }
-
-  if (filepath.startsWith('node_modules/') || filepath.startsWith('.git/')) {
-    return true;
-  }
-
-  const gitignore = fs.readFileSync(gitignorePath, 'utf8');
-  const ignorePatterns = gitignore.split('\n').filter((line) => line.trim() !== '' && !line.startsWith('#'));
-
-  return ignorePatterns.some((pattern) => new RegExp(`^${pattern.replace('*', '.*')}$`).test(filepath));
-};
-
-const addDirectoryToArchive = (dirPath, archive) => {
-  const items = fs.readdirSync(dirPath);
-  items.forEach((item) => {
-    const itemPath = path.join(dirPath, item);
-    const itemName = path.relative(__dirname, itemPath);
-
-    if (!isIgnored(itemName)) {
-      if (fs.lstatSync(itemPath).isDirectory()) {
-        addDirectoryToArchive(itemPath, archive);
-      } else {
-        archive.file(itemPath, { name: itemName });
-      }
-    }
-  });
-};
-
-const runBrowserify = () => {
-  return new Promise((resolve, reject) => {
-    exec('browserify background.js -o backgroundBundle.js', (error, stdout, stderr) => {
-      if (error) {
-        console.error(`Error running Browserify: ${error}`);
-        reject(error);
-      } else {
-        console.log('Browserify completed successfully.');
-        resolve();
-      }
+async function fetchUpcomingHoliday() {
+  try {
+    const response = await fetch('https://zerodha.com/marketintel/holiday-calendar/', {
+      headers: {
+        'Cache-Control': 'no-cache',
+      },
     });
-  });
-};
+    const html = await response.text();
+    const $ = cheerio.load(html);
 
-const createZip = async () => {
-  await runBrowserify();
+    const holidayText = $('#holidays h4.text-center').text()
 
-  const output = fs.createWriteStream(outputPath);
-  const archive = archiver('zip', {
-    zlib: { level: 9 }, // Sets the compression level.
-  });
+    return holidayText.trim();
+  } catch (error) {
+    console.error('Error fetching holiday data:', error);
+  }
+}
 
-  output.on('close', () => {
-    console.log(`Extension has been zipped to ${outputPath}. Total size: ${archive.pointer()} bytes.`);
-  });
+chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
+  if (request.action === 'getUpcomingHoliday') {
+    const upcomingHolidayText = await fetchUpcomingHoliday();
 
-  archive.on('warning', (err) => {
-    if (err.code === 'ENOENT') {
-      console.warn(err);
-    } else {
-      throw err;
+    if (upcomingHolidayText) {
+      chrome.storage.local.set({
+        'upcomingHolidayText': {
+          text: upcomingHolidayText,
+          timestamp: Date.now(),
+        },
+      });
+      sendResponse({ upcomingHolidayText: upcomingHolidayText });
     }
-  });
-
-  archive.on('error', (err) => {
-    throw err;
-  });
-
-  archive.pipe(output);
-
-  addDirectoryToArchive(__dirname, archive);
-
-  archive.finalize();
-};
-
-createZip();
+  }
+  return true; // Required to use sendResponse asynchronously
+});
