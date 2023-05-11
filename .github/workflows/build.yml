@@ -34,7 +34,6 @@ jobs:
       with:
         github-token: ${{secrets.GITHUB_TOKEN}}
         script: |
-          const core = require('@actions/core');
           const version = "${{steps.package.outputs.version}}"
           const tag_name = `v${version}`
           const repository = context.repo
