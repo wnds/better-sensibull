@@ -34,6 +34,7 @@ jobs:
       with:
         github-token: ${{secrets.GITHUB_TOKEN}}
         script: |
+          const core = require('@actions/core');
           const version = "${{steps.package.outputs.version}}"
           const tag_name = `v${version}`
           const repository = context.repo
@@ -49,6 +50,7 @@ jobs:
               const message = `Release for version ${version}`
               const sha = context.sha
               const result = await github.git.createRef({ owner, repo, ref, sha })
+              core.setOutput('tag_name', tag_name);
               return result.data
             } else {
               throw error
