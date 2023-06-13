@@ -1,18 +1,34 @@
-const cheerio = require('cheerio');
-
 async function fetchUpcomingHoliday() {
   try {
-    const response = await fetch('https://zerodha.com/marketintel/holiday-calendar/', {
+    const response = await fetch('https://zerodha.com/marketintel/holiday-calendar/?format=json', {
       headers: {
         'Cache-Control': 'no-cache',
       },
     });
-    const html = await response.text();
-    const $ = cheerio.load(html);
+    const data = await response.json();
 
-    const holidayText = $('#holidays h4.text-center').text()
+    // Get current date
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0); // Sets the time to midnight
 
-    return holidayText.trim();
+    // Find the next upcoming holiday
+    let upcomingHoliday = null;
+    for (let holiday of data) {
+      const holidayDate = new Date(holiday.date);
+      if (holidayDate > currentDate) {
+        upcomingHoliday = holiday;
+        break;
+      }
+    }
+
+    // Check if there is an upcoming holiday
+    if (!upcomingHoliday) {
+      return "No upcoming holidays found.";
+    }
+
+    const holidayText = `The next upcoming holiday is ${upcomingHoliday.title} on ${new Date(upcomingHoliday.date).toDateString()}.`;
+
+    return holidayText;
   } catch (error) {
     console.error('Error fetching holiday data:', error);
   }
