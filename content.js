@@ -8,6 +8,12 @@ chrome.storage.local.get('upcomingHolidayText', async (result) => {
     } else {
         // Request the holiday text from the background script
         chrome.runtime.sendMessage({ action: 'getUpcomingHoliday' }, (response) => {
+            if (chrome.runtime.lastError || !response || !response.upcomingHolidayText) {
+                if (chrome.runtime.lastError) {
+                    console.error('Error handling response:', chrome.runtime.lastError.message);
+                }
+                return;
+            }
             upcomingHolidayText = response.upcomingHolidayText;
             displayUpcomingHoliday(upcomingHolidayText);
         });
@@ -17,12 +23,17 @@ chrome.storage.local.get('upcomingHolidayText', async (result) => {
     displayUpcomingHoliday(upcomingHolidayText);
 });
 
-function displayUpcomingHoliday(upcomingHolidayText) {
-    const targetElementXPath = '//*[@id="app"]/div/div[3]/div[1]/div';
+function displayUpcomingHoliday(upcomingHolidayText, retriesLeft = 5, retryDelayMs = 1000) {
+    const targetElementXPath = '/html/body/div/div/div[2]/nav/div';
     const targetElement = document.evaluate(targetElementXPath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
 
-    if (targetElement) {
+    if (targetElement && isElementVisible(targetElement)) {
+        if (document.getElementById('better-sensibull-holiday-bar')) {
+            return;
+        }
+
         const holidayBar = document.createElement('div');
+        holidayBar.id = 'better-sensibull-holiday-bar';
         holidayBar.style.width = '100%';
         holidayBar.style.backgroundColor = '#2c3e50';
         holidayBar.style.color = '#ffffff';
@@ -34,7 +45,26 @@ function displayUpcomingHoliday(upcomingHolidayText) {
 
         // Insert the holiday bar after the target element
         targetElement.parentNode.insertBefore(holidayBar, targetElement.nextSibling);
+        return;
+    }
+
+    if (retriesLeft > 0) {
+        setTimeout(() => {
+            displayUpcomingHoliday(upcomingHolidayText, retriesLeft - 1, retryDelayMs);
+        }, retryDelayMs);
     }
 }
 
+function isElementVisible(element) {
+    if (!element || !element.isConnected) {
+        return false;
+    }
 
+    const style = window.getComputedStyle(element);
+    if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+        return false;
+    }
+
+    const rect = element.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+}

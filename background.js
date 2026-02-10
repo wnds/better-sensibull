@@ -34,19 +34,27 @@ async function fetchUpcomingHoliday() {
   }
 }
 
-chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
-  if (request.action === 'getUpcomingHoliday') {
-    const upcomingHolidayText = await fetchUpcomingHoliday();
-
-    if (upcomingHolidayText) {
-      chrome.storage.local.set({
-        'upcomingHolidayText': {
-          text: upcomingHolidayText,
-          timestamp: Date.now(),
-        },
-      });
-      sendResponse({ upcomingHolidayText: upcomingHolidayText });
-    }
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action !== 'getUpcomingHoliday') {
+    return false;
   }
-  return true; // Required to use sendResponse asynchronously
+
+  fetchUpcomingHoliday()
+    .then((upcomingHolidayText) => {
+      if (upcomingHolidayText) {
+        chrome.storage.local.set({
+          'upcomingHolidayText': {
+            text: upcomingHolidayText,
+            timestamp: Date.now(),
+          },
+        });
+      }
+      sendResponse({ upcomingHolidayText: upcomingHolidayText || null });
+    })
+    .catch((error) => {
+      console.error('Error processing holiday message:', error);
+      sendResponse({ upcomingHolidayText: null });
+    });
+
+  return true; // Keep the message port open for async sendResponse
 });
