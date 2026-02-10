@@ -5,18 +5,21 @@ on:
     branches:
       - main  # replace with your default branch if not 'main'
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Use Node.js
-      uses: actions/setup-node@v2
+      uses: actions/setup-node@v4
       with:
-        node-version: '16.x'
+        node-version: '20'
 
     - name: Install Dependencies
       run: npm install
@@ -26,54 +29,47 @@ jobs:
 
     - name: Get version
       id: package
-      run: echo "::set-output name=version::$(node -p "require('./manifest.json').version")"
+      run: |
+        VERSION=$(node -pe "require('./manifest.json').version")
+        echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       
-    - name: Create Tag
+    - name: Ensure Tag Exists
       id: create_tag
-      uses: actions/github-script@v3
+      uses: actions/github-script@v7
       with:
         github-token: ${{secrets.GITHUB_TOKEN}}
         script: |
-          const version = "${{steps.package.outputs.version}}"
-          const tag_name = `v${version}`
-          const repository = context.repo
-          const { owner, repo } = repository
-          const ref = `refs/tags/${tag_name}`
-          console.log(`Checking if tag "${tag_name}" already exists...`)
+          const version = "${{ steps.package.outputs.version }}";
+          const tagName = `v${version}`;
+          const { owner, repo } = context.repo;
+          const getRef = `tags/${tagName}`;
+
+          core.setOutput('tag_name', tagName);
+          console.log(`Checking if tag "${tagName}" already exists...`);
+
           try {
-            await github.git.getRef({ owner, repo, ref })
-            console.log(`Tag "${tag_name}" already exists`)
+            await github.rest.git.getRef({ owner, repo, ref: getRef });
+            console.log(`Tag "${tagName}" already exists`);
           } catch (error) {
             if (error.status === 404) {
-              console.log(`Tag "${tag_name}" does not exist, creating it...`)
-              const message = `Release for version ${version}`
-              const sha = context.sha
-              const result = await github.git.createRef({ owner, repo, ref, sha })
-              core.setOutput('tag_name', tag_name);
-              return result.data
+              console.log(`Tag "${tagName}" does not exist, creating it...`);
+              await github.rest.git.createRef({
+                owner,
+                repo,
+                ref: `refs/tags/${tagName}`,
+                sha: context.sha,
+              });
             } else {
-              throw error
+              throw error;
             }
           }
 
     - name: Create Release
       id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{steps.create_tag.outputs.tag_name}}
+        tag_name: ${{ steps.create_tag.outputs.tag_name }}
         release_name: Release ${{steps.package.outputs.version}}
         draft: false
         prerelease: false
-
-    - name: Upload Release Asset
-      id: upload-release-asset 
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }} 
-        asset_path: ./better-sensibull-v${{ steps.package.outputs.version }}.zip
-        asset_name: better-sensibull-v${{ steps.package.outputs.version }}.zip
-        asset_content_type: application/zip
+        files: ./better-sensibull-v${{ steps.package.outputs.version }}.zip
